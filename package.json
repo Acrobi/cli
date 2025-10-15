@@ -1,0 +1,60 @@
+{
+  "name": "@acrobi/cli",
+  "version": "1.0.0",
+  "description": "The official CLI for the Acrobi agent system - powerful swarm coordination and local task execution.",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsc -w",
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "npm run build"
+  },
+  "keywords": [
+    "acrobi",
+    "cli",
+    "agents",
+    "swarm",
+    "coordination",
+    "automation",
+    "claude-flow",
+    "task-execution"
+  ],
+  "author": "Acrobi",
+  "license": "MIT",
+  "packageManager": "pnpm@10.12.4",
+  "private": false,
+  "type": "module",
+  "bin": "./dist/index.js",
+  "files": [
+    "dist",
+    "README.md",
+    "package.json"
+  ],
+  "dependencies": {
+    "@types/prompts": "^2.4.9",
+    "chalk": "^5.6.2",
+    "commander": "^12.0.0",
+    "execa": "^9.6.0",
+    "node-fetch": "^3.3.2",
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@types/node-fetch": "^2.6.11",
+    "typescript": "^5.4.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Acrobi/cli.git"
+  },
+  "homepage": "https://github.com/Acrobi/cli#readme",
+  "bugs": {
+    "url": "https://github.com/Acrobi/cli/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
