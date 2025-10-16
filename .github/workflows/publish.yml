@@ -47,7 +47,9 @@ jobs:
           echo "Package name: $(pnpm pkg get name)"
           echo "Package version: $(pnpm pkg get version)"
           echo "Package files:"
-          pnpm pack --dry-run
+          pnpm pack --pack-destination ./temp-pack
+          ls -la ./temp-pack/
+          rm -rf ./temp-pack
 
       - name: Publish to NPM
         run: pnpm publish
