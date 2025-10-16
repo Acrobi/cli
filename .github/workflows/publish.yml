@@ -52,6 +52,6 @@ jobs:
           rm -rf ./temp-pack
 
       - name: Publish to NPM
-        run: pnpm publish
+        run: pnpm publish --no-git-checks
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
