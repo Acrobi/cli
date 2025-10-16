@@ -1,6 +1,6 @@
 {
   "name": "@acrobi/cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "The official CLI for the Acrobi agent system - powerful swarm coordination and local task execution.",
   "main": "dist/index.js",
   "scripts": {
