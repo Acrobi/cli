@@ -20,16 +20,36 @@ jobs:
           node-version: '18'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: '10.12.4'
+
+      - name: Show environment info
+        run: |
+          echo "Node version: $(node --version)"
+          echo "PNPM version: $(pnpm --version)"
+          echo "Current directory: $(pwd)"
+          echo "Files in directory:"
+          ls -la
+
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build package
-        run: npm run build
+        run: pnpm run build
 
       - name: Run tests
-        run: npm test
+        run: pnpm test
+
+      - name: Show package info
+        run: |
+          echo "Package name: $(pnpm pkg get name)"
+          echo "Package version: $(pnpm pkg get version)"
+          echo "Package files:"
+          pnpm pack --dry-run
 
       - name: Publish to NPM
-        run: npm publish
+        run: pnpm publish
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
