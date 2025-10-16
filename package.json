@@ -16,8 +16,9 @@
     "swarm",
     "coordination",
     "automation",
-    "claude-flow",
-    "task-execution"
+    "task-execution",
+    "ai",
+    "orchestration"
   ],
   "author": "Acrobi",
   "license": "MIT",
