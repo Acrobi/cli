@@ -651,17 +651,10 @@ async function connectCommand(options: { url?: string }) {
 }
 
 // --- Command: run ---
-async function runCommand(task: string, options: { verbose?: boolean, engine?: string }) {
+async function runCommand(task: string, options: { verbose?: boolean }) {
   try {
-    // Validate engine option
-    const engine = options.engine || 'legacy';
-    if (!['legacy', 'native'].includes(engine)) {
-      console.error(chalk.red(`Error: Invalid engine "${engine}". Valid options are: legacy, native`));
-      process.exit(1);
-    }
-
     console.log(chalk.bold(`🚀 Running Acrobi task: "${task}"`));
-    console.log(chalk.dim(`🔧 Using engine: ${engine.toUpperCase()}`));
+    console.log(chalk.dim('🔧 Using native engine'));
 
     // Import the Cortex runtime
     const __filename = fileURLToPath(import.meta.url);
@@ -680,7 +673,8 @@ async function runCommand(task: string, options: { verbose?: boolean, engine?: s
     } catch (importError) {
       // Fallback to package installation
       try {
-        const cortexPackage = await import('@acrobi/cortex');
+        // Use dynamic import that won't be checked by TypeScript
+        const cortexPackage = await eval('import("@acrobi/cortex")');
         Agent = cortexPackage.Agent;
         Session = cortexPackage.Session;
         Orchestrator = cortexPackage.Orchestrator;
@@ -699,7 +693,8 @@ async function runCommand(task: string, options: { verbose?: boolean, engine?: s
       initializeTools = initTools;
     } catch (toolError) {
       try {
-        const { initializeTools: initTools } = await import('@acrobi/cortex/dist/tools/dynamic-tool-loader.js');
+        // Use dynamic import that won't be checked by TypeScript
+        const { initializeTools: initTools } = await eval('import("@acrobi/cortex/dist/tools/dynamic-tool-loader.js")');
         initializeTools = initTools;
       } catch (packageToolError) {
         console.warn(chalk.yellow('⚠️  Dynamic tool loading not available'));
@@ -727,169 +722,58 @@ async function runCommand(task: string, options: { verbose?: boolean, engine?: s
 
     let result: any;
 
-    // Execute task based on engine choice
-    if (engine === 'native') {
-      console.log(chalk.blue('🚀 Using Native Engine with Anthropic SDK'));
+    console.log(chalk.blue('🚀 Using Native Engine with Anthropic SDK'));
 
-      if (!NativeSessionManager) {
-        throw new Error('NativeSessionManager not available - please ensure @acrobi/cortex is properly installed');
-      }
+    if (!NativeSessionManager) {
+      throw new Error('NativeSessionManager not available - please ensure @acrobi/cortex is properly installed');
+    }
 
-      const nativeSessionManager = new NativeSessionManager();
+    const nativeSessionManager = new NativeSessionManager();
 
-      // Prepare tools for native session
-      const tools = [];
-      for (const [name, tool] of loadedTools) {
-        tools.push({
-          name,
-          description: tool.definition.description,
-          code: tool.definition.code || tool.definition.input_schema?.description || '',
-          execute: tool.execute.bind(tool)
-        });
-      }
-
-      // Create native session
-      const sessionId = await nativeSessionManager.createSession({
-        tools,
-        metadata: {
-          projectName: path.basename(process.cwd()),
-          environment: 'local',
-          workingDirectory: process.cwd(),
-          engine: 'native'
-        }
+    // Prepare tools for native session
+    const tools = [];
+    for (const [name, tool] of loadedTools) {
+      tools.push({
+        name,
+        description: tool.definition.description,
+        code: tool.definition.code || tool.definition.input_schema?.description || '',
+        execute: tool.execute.bind(tool)
       });
+    }
 
-      console.log(chalk.dim(`Created native session: ${sessionId}`));
-
-      try {
-        // Send task to native session
-        const response = await nativeSessionManager.sendMessage(sessionId, task, {
-          system: `You are a local task execution assistant. Execute the given task to the best of your ability.`
-        });
-
-        result = {
-          success: true,
-          message: 'Task completed with native engine',
-          response: response.content
-        };
-
-        if (options.verbose && response.toolUse && response.toolUse.length > 0) {
-          console.log(chalk.dim(`Tools used: ${response.toolUse.map((t: any) => t.name).join(', ')}`));
-        }
-
-      } finally {
-        // Clean up native session
-        await nativeSessionManager.deactivateSession(sessionId);
-        console.log(chalk.dim('Native session deactivated'));
-      }
-
-    } else {
-      console.log(chalk.blue('🔄 Using Legacy Engine'));
-
-      // Legacy engine execution
-      const session = new Session({
+    // Create native session
+    const sessionId = await nativeSessionManager.createSession({
+      tools,
+      metadata: {
         projectName: path.basename(process.cwd()),
         environment: 'local',
-        workingDirectory: process.cwd()
+        workingDirectory: process.cwd(),
+        engine: 'native'
+      }
+    });
+
+    console.log(chalk.dim(`Created native session: ${sessionId}`));
+
+    try {
+      // Send task to native session
+      const response = await nativeSessionManager.sendMessage(sessionId, task, {
+        system: `You are a local task execution assistant. Execute the given task to the best of your ability.`
       });
 
-      // Create a simple execution agent
-      class LocalExecutorAgent extends Agent {
-        constructor(session: any) {
-          super('local-executor', 'Local task execution agent', session);
-        }
+      result = {
+        success: true,
+        message: 'Task completed with native engine',
+        response: response.content
+      };
 
-        async run(input?: any): Promise<any> {
-          this.log('Starting local task execution...');
-
-        try {
-          // Parse the task to understand what tools to use
-          const taskLower = task.toLowerCase();
-          let result: any = { success: true, message: 'Task completed successfully' };
-
-          // Check if task involves Playwright
-          if (taskLower.includes('playwright') || taskLower.includes('browser') || taskLower.includes('title of')) {
-            const playwrightTool = loadedTools.get('PlaywrightBrowser');
-            if (playwrightTool) {
-              this.log('Using Playwright browser tool...');
-
-              // Extract URL from task (simple pattern matching)
-              const urlMatch = task.match(/(?:title of|visit|go to|navigate to)\s+([^\s]+)/i);
-              if (urlMatch) {
-                const url = urlMatch[1];
-                this.log(`Navigating to: ${url}`);
-
-                // Navigate to the URL
-                const navResult = await playwrightTool.definition.execute({
-                  action: 'goto',
-                  url: url.startsWith('http') ? url : `https://${url}`
-                });
-
-                if (navResult.success) {
-                  this.log('Getting page title...');
-
-                  // Get the page title
-                  const titleResult = await playwrightTool.definition.execute({
-                    action: 'title'
-                  });
-
-                  if (titleResult.success) {
-                    result = {
-                      success: true,
-                      title: titleResult.data,
-                      message: `Page title: ${titleResult.data}`
-                    };
-
-                    // Cleanup the browser tool
-                    if (playwrightTool.definition.cleanup) {
-                      await playwrightTool.definition.cleanup();
-                    }
-                  } else {
-                    result = { success: false, error: titleResult.error };
-                  }
-                } else {
-                  result = { success: false, error: navResult.error };
-                }
-              } else {
-                result = { success: false, error: 'Could not extract URL from task' };
-              }
-            } else {
-              result = { success: false, error: 'Playwright tool not found. Install it with: npm install @acrobi/tool-playwright' };
-            }
-          } else {
-            // Generic task execution
-            this.log(`Executing task: ${task}`);
-
-            // Simulate task execution for non-tool-specific tasks
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            result = {
-              success: true,
-              message: `Task "${task}" completed successfully (simulated execution)`,
-              note: 'This is a simulated result. For actual automation, install specific tool packages.'
-            };
-          }
-
-          this.log('Task execution completed');
-          return result;
-
-        } catch (error) {
-          this.log(`Error in task execution: ${error}`, 'error');
-          throw error;
-        }
+      if (options.verbose && response.toolUse && response.toolUse.length > 0) {
+        console.log(chalk.dim(`Tools used: ${response.toolUse.map((t: any) => t.name).join(', ')}`));
       }
-        }
 
-      // Create and run the legacy agent
-      console.log(chalk.blue('🤖 Creating local executor agent...'));
-      const agent = new LocalExecutorAgent(session);
-
-      console.log(chalk.blue('⚡ Executing task...'));
-
-      result = await agent.run({ task });
-
-      // Cleanup legacy session
-      await agent.cleanup();
+    } finally {
+      // Clean up native session
+      await nativeSessionManager.deactivateSession(sessionId);
+      console.log(chalk.dim('Native session deactivated'));
     }
 
     const duration = Date.now() - startTime;
@@ -938,5 +822,5 @@ program.command("add").description("Add a component to your project").argument("
 program.command("add:agents").description("Add Acrobi Cortex agents to your project").action(addAgentsCommand);
 program.command("add:design-system").description("Add Acrobi Design System to your project").action(addDesignSystemCommand);
 program.command("connect").description("Connect to Acrobi Theme Server").option("--url <url>", "Theme server URL").action(connectCommand);
-program.command("run").description("Run an Acrobi task locally").argument("<task>", "Task to execute").option("-v, --verbose", "Enable verbose logging").option("-e, --engine <engine>", "Specify the execution engine (legacy|native)", "legacy").action(runCommand);
+program.command("run").description("Run an Acrobi task locally").argument("<task>", "Task to execute").option("-v, --verbose", "Enable verbose logging").action(runCommand);
 program.parse();
